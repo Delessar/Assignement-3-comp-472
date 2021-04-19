@@ -1,28 +1,11 @@
+import sys
 from math import sqrt
 from itertools import count, islice
 
-
-def best_move(player_one, bag_of_tokens, taken_tokens):
-    possible_moves = possible_pick(bag_of_tokens, taken_tokens)
-    print("nodes evaluated", len(possible_moves), possible_moves)
-    best_pick = None
-    best_pick_eval = None
-    for x in possible_moves:
-        temp_bot = bag_of_tokens.copy()
-        temp_tt = taken_tokens.copy()
-        temp_bot.remove(x)
-        temp_tt.append(x)
-        position_evaluation = evaluate_board(not player_one, temp_bot, temp_tt)
-        if best_pick_eval is None:
-            best_pick_eval = position_evaluation
-            best_pick = x
-        elif player_one and (position_evaluation > best_pick_eval):
-            best_pick_eval = position_evaluation
-            best_pick = x
-        elif not player_one and (position_evaluation < best_pick_eval):
-            best_pick_eval = position_evaluation
-            best_pick = x
-    return best_pick
+visited_node = 0
+evaluated_node = 0
+max_depth = 0
+search_depth = 0
 
 
 def first_move(number_of_tokens):
@@ -48,6 +31,7 @@ def is_prime(n):
 
 
 def evaluate_board(player_one, bag_of_tokens, taken_tokens):
+
     player_one_multiplier = 1 if player_one else -1
 
     if len(bag_of_tokens) == 0 or len(possible_pick(bag_of_tokens, taken_tokens)) == 0:
@@ -101,59 +85,105 @@ def evaluate_board(player_one, bag_of_tokens, taken_tokens):
                 else:
                     return -0.6 * player_one_multiplier
 
-visited_node = 0
-evaluated_node = 0
 
-def play_PNT(bag_of_tokens, taken_tokens, depth, alpha, beta, player_one):
-    global evaluated_node, visited_node
-    print("evaluated_node ", evaluated_node)
-    print("visited_node ", visited_node)
+def alpha_beta_search(bag_of_tokens, taken_tokens, alpha, beta, max_player, current_depth=0):
+    global evaluated_node, visited_node, max_depth, search_depth
+    visited_node = visited_node + 1
+
+    # Update the search depth
+    if current_depth > search_depth:
+        search_depth = current_depth
+
     move = None
-    if depth == 0 or len(possible_pick(bag_of_tokens, taken_tokens)) == 0:
-        eval_pos = evaluate_board(not player_one, bag_of_tokens, taken_tokens)
+
+    # If we reached a leaf node
+    if current_depth == max_depth or len(possible_pick(bag_of_tokens, taken_tokens)) == 0:
+        eval_pos = evaluate_board(not max_player, bag_of_tokens, taken_tokens)
         evaluated_node = evaluated_node + 1
-        # print("finish ", taken_tokens, " Win for player: ", "MAX" if not player_one else "MIN", eval_pos)
         return eval_pos, move
 
-    if player_one:
+    # Prepare to expand the state
+    possible_moves = possible_pick(bag_of_tokens, taken_tokens)
+    new_depth = current_depth + 1
+
+    # Max-value()
+    if max_player:
         max_eval = float('-inf')
-        possible_moves = possible_pick(bag_of_tokens, taken_tokens)
         for x in possible_moves:
-            visited_node = visited_node + 1
+            # Update the state
             temp_bot = bag_of_tokens.copy()
             temp_tt = taken_tokens.copy()
             temp_bot.remove(x)
             temp_bot.sort(reverse=True)
             temp_tt.append(x)
-            new_depth = None if depth is None else depth - 1
-            evaluation, move2 = play_PNT(temp_bot, temp_tt, new_depth, alpha, beta, False)
+
+            # Recursively call the alpha_beta_search
+            evaluation, move2 = alpha_beta_search(temp_bot, temp_tt, alpha, beta, False, new_depth)
             if evaluation > max_eval:
                 max_eval, move = evaluation, x
                 alpha = max(alpha, evaluation)
-            #max_eval = max(max_eval, evaluation)
-            #alpha = max(alpha, evaluation)
             if beta <= max_eval:
                 move = x
                 break
-        return max_eval, move
 
+        return max_eval, move
+    # Min-value()
     else:
         min_eval = float('inf')
-        possible_moves = possible_pick(bag_of_tokens, taken_tokens)
         for x in possible_moves:
-            visited_node = visited_node + 1
+            # Update the state
             temp_bot = bag_of_tokens.copy()
             temp_tt = taken_tokens.copy()
             temp_bot.remove(x)
             temp_bot.sort(reverse=True)
             temp_tt.append(x)
-            new_depth = None if depth is None else depth - 1
-            evaluation, move2 = play_PNT(temp_bot, temp_tt, new_depth, alpha, beta, True)
+
+            # Recursively call the alpha_beta_search
+            evaluation, move2 = alpha_beta_search(temp_bot, temp_tt, alpha, beta, True, new_depth)
             if evaluation < min_eval:
                 min_eval, move = evaluation, x
                 beta = min(beta, evaluation)
-            #min_eval = min(min_eval, evaluation)
-            #beta = min(beta, evaluation)
             if min_eval <= alpha:
+                move = x
                 break
+
         return min_eval, move
+
+
+def print_output(move, value):
+    global evaluated_node, visited_node, max_depth, search_depth
+    print("Move:", move)
+    print("Value:", value)
+    print('Number of node visited:', visited_node)
+    print('Number of nodes evaluated:', evaluated_node)
+    print('Max depth reached: ', search_depth)
+
+    if visited_node == evaluated_node:
+        print('Avg Effective Branching Factor: N/A since the game already ended.')
+    else:
+        print('Avg Effective Branching Factor:', round(((visited_node - 1) / (visited_node - evaluated_node)), 1))
+
+
+def main():
+    global max_depth
+
+    # get argument list using sys module
+    sys.argv
+    tokens = list(range(1, int(sys.argv[1]) + 1))
+    taken_tokens_integer = int(sys.argv[2])
+    taken_tokens = []
+    max_depth = None if int(sys.argv[3 + taken_tokens_integer]) == 0 else int(sys.argv[3 + taken_tokens_integer])
+
+    if taken_tokens_integer != 0:
+        for i in range(0, taken_tokens_integer):
+            x = int(sys.argv[3 + i])
+            taken_tokens.append(x)
+            tokens.remove(x)
+
+    player = len(taken_tokens) % 2 == 0
+
+    evaluation, move = alpha_beta_search(tokens, taken_tokens, float(-1), float(1), player)
+    print_output(move, evaluation)
+
+
+main()
